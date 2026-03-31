@@ -3,6 +3,11 @@ import pandas as pd
 import networkx as nx
 from pyvis.network import Network
 import os
+import sys
+
+# Ensure project root is on the path for compliance imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from compliance.compliance_tab import render_compliance_tab
 
 DATA_DIR = 'data'
 
@@ -54,7 +59,7 @@ def get_at_risk_subgraph(G, attrs):
     return G.subgraph(connected_nodes).copy()
 
 # Tabs
-anomaly_tab, user_tab, graph_tab, how_tab = st.tabs(["Anomaly Table", "User Detail", "At-Risk Graph", "How Does It Work?"])
+anomaly_tab, user_tab, graph_tab, how_tab, compliance_tab = st.tabs(["Anomaly Table", "User Detail", "At-Risk Graph", "How Does It Work?", "⚖️ Compliance Audit"])
 
 with anomaly_tab:
     st.header('User Anomaly Scores')
@@ -189,3 +194,6 @@ This system detects insider threats by analyzing user behavior, system access, a
 ## Summary
 This system combines unsupervised machine learning, graph theory, and explainable AI to provide a robust, interpretable approach to insider threat detection.
 ''') 
+
+with compliance_tab:
+    render_compliance_tab()

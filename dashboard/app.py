@@ -1,6 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
+import sys
+
+# Ensure project root is on the path for compliance imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from compliance.compliance_tab import render_compliance_tab
 
 DATA_DIR = 'data'
 
@@ -42,4 +47,8 @@ st.write('**Red Team:**', '🚩' if user_row['Red Team'] else 'No')
 st.write('**Features:**')
 st.json({k: user_row[k] for k in ['mean_login_hour', 'mean_logout_hour', 'files_per_day', 'usb_per_day', 'emails_per_day', 'out_of_session_access', 'degree_centrality', 'betweenness_centrality', 'keyword_flag', 'subject_len', 'sentiment'] if k in user_row})
 st.write('**Anomaly Scores:**')
-st.json({k: user_row[k] for k in ['isolation_forest', 'oneclass_svm', 'autoencoder']}) 
+st.json({k: user_row[k] for k in ['isolation_forest', 'oneclass_svm', 'autoencoder']})
+
+# Compliance Audit Section
+st.divider()
+render_compliance_tab()
