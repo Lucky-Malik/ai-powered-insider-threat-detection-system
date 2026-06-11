@@ -10,7 +10,9 @@ def load_logs():
     logins = pd.read_csv(os.path.join(DATA_DIR, 'logins.csv'), parse_dates=['login', 'logout'])
     file_access = pd.read_csv(os.path.join(DATA_DIR, 'file_access.csv'), parse_dates=['access_time'])
     usb_usage = pd.read_csv(os.path.join(DATA_DIR, 'usb_usage.csv'), parse_dates=['plug_time', 'unplug_time'])
-    emails = pd.read_csv(os.path.join(DATA_DIR, 'emails.csv'), parse_dates=['time'])
+    emails = pd.read_csv(os.path.join(DATA_DIR, 'emails.csv'), parse_dates=['time'], low_memory=False)
+    if 'from' in emails.columns and 'sender' not in emails.columns:
+        emails = emails.rename(columns={'from': 'sender'})
     return logins, file_access, usb_usage, emails
 
 # Feature extraction

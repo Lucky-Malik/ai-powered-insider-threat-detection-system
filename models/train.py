@@ -13,7 +13,8 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 
 # Load features
 df = pd.read_csv(os.path.join(DATA_DIR, 'merged_features.csv'))
-X = df.drop(['user', 'is_red_team'], axis=1)
+X = df.drop(['user', 'is_red_team'], axis=1, errors='ignore')
+X = X.select_dtypes(include=[np.number]).fillna(0)
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
@@ -38,7 +39,7 @@ joblib.dump(auto, os.path.join(MODEL_DIR, 'autoencoder.pkl'))
 # Save anomaly scores
 scores = pd.DataFrame({
     'user': df['user'],
-    'is_red_team': df['is_red_team'],
+    'is_red_team': df['is_red_team'] if 'is_red_team' in df.columns else 0,
     'isolation_forest': iso_scores,
     'oneclass_svm': svm_scores,
     'autoencoder': auto_recon

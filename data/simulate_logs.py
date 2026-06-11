@@ -66,3 +66,8 @@ if __name__ == '__main__':
     simulate_usb_usage()
     simulate_emails()
     print('Simulated logs generated in data/.') 
+
+
+
+
+
