@@ -24,6 +24,7 @@ def load_all_data():
 
 features, scores, file_access, usb_usage = load_all_data()
 df = pd.merge(features, scores, on='user')
+st.write('Dashboard loaded — users:', len(df))
 
 # Prepare node attributes for graph
 def get_node_attrs():
@@ -50,12 +51,19 @@ def build_graph():
 G = build_graph()
 
 # At-risk subgraph
-def get_at_risk_subgraph(G, attrs):
-    high_risk_nodes = {n for n, v in attrs.items() if v['high_risk']}
-    connected_nodes = set()
-    for node in high_risk_nodes:
-        connected_nodes.add(node)
-        connected_nodes.update(G.neighbors(node))
+def get_at_risk_subgraph(G, attrs, max_users=5, max_neighbors=20, max_total_nodes=100):
+    high_risk_nodes = [n for n, v in attrs.items() if v['high_risk'] and n in G]
+    high_risk_nodes.sort(key=lambda n: (attrs[n]['anomaly'], attrs[n]['red_team']), reverse=True)
+    selected_users = high_risk_nodes[:max_users]
+    connected_nodes = set(selected_users)
+
+    for node in selected_users:
+        neighbors = sorted(G.neighbors(node), key=lambda x: G.degree(x), reverse=True)[:max_neighbors]
+        connected_nodes.update(neighbors)
+
+    if len(connected_nodes) > max_total_nodes:
+        connected_nodes = set(list(connected_nodes)[:max_total_nodes])
+
     return G.subgraph(connected_nodes).copy()
 
 # Tabs
@@ -85,49 +93,64 @@ with user_tab:
 
 with graph_tab:
     st.header('At-Risk Nodes and Their Connections')
-    subG = get_at_risk_subgraph(G, attrs)
-    net = Network(height='900px', width='100%', notebook=False, bgcolor='#222222', font_color='white')
-    net.barnes_hut(gravity=-2000, central_gravity=0.1, spring_length=200, spring_strength=0.01, damping=0.85, overlap=1)
-    net.set_options('''
-    var options = {
-      "physics": {
-        "enabled": true,
-        "stabilization": {"enabled": true, "fit": true, "iterations": 2500, "updateInterval": 50},
-        "barnesHut": {
-          "gravitationalConstant": -2000,
-          "centralGravity": 0.1,
-          "springLength": 200,
-          "springConstant": 0.01,
-          "damping": 0.85,
-          "avoidOverlap": 1
+    try:
+        subG = get_at_risk_subgraph(G, attrs)
+        st.write(f'Showing {subG.number_of_nodes()} nodes and {subG.number_of_edges()} edges in the sampled at-risk graph.')
+    except Exception as exc:
+        st.error('Unable to build the at-risk graph.')
+        st.exception(exc)
+        subG = None
+
+    if subG is None or subG.number_of_nodes() == 0:
+        st.warning('No at-risk graph is available for the current data selection.')
+    elif subG.number_of_nodes() > 120:
+        st.warning('The at-risk graph is too large to render smoothly. Showing a smaller summary instead.')
+        top_users = sorted([n for n in subG.nodes() if n in attrs], key=lambda n: attrs[n]['anomaly'], reverse=True)[:10]
+        st.write('Top users in the sampled graph:')
+        st.write(top_users)
+    else:
+        net = Network(height='900px', width='100%', notebook=False, bgcolor='#222222', font_color='white')
+        net.barnes_hut(gravity=-2000, central_gravity=0.1, spring_length=200, spring_strength=0.01, damping=0.85, overlap=1)
+        net.set_options('''
+        var options = {
+          "physics": {
+            "enabled": true,
+            "stabilization": {"enabled": true, "fit": true, "iterations": 2500, "updateInterval": 50},
+            "barnesHut": {
+              "gravitationalConstant": -2000,
+              "centralGravity": 0.1,
+              "springLength": 200,
+              "springConstant": 0.01,
+              "damping": 0.85,
+              "avoidOverlap": 1
+            }
+          }
         }
-      }
-    }
-    ''')
-    for node in subG.nodes():
-        if node in attrs:
-            score = attrs[node]['anomaly']
-            red = attrs[node]['red_team']
-            color = 'red' if red else ('orange' if score > 1.5 else 'yellow' if score > 1.0 else 'lightblue')
-            size = 30 if red else (20 if score > 1.5 else 15 if score > 1.0 else 10)
-            title = f"User: {node}<br>Anomaly Score: {score:.2f}<br>Red Team: {'Yes' if red else 'No'}"
-        elif str(node).startswith('file'):
-            color = 'green'
-            size = 8
-            title = f"File: {node}"
-        elif str(node).startswith('usb'):
-            color = 'purple'
-            size = 8
-            title = f"Device: {node}"
-        else:
-            color = 'gray'
-            size = 8
-            title = str(node)
-        net.add_node(node, label=str(node), color=color, size=size, title=title)
-    for edge in subG.edges(data=True):
-        net.add_edge(edge[0], edge[1], color='gray' if edge[2]['type']=='access' else 'purple')
-    net.save_graph('dashboard/graph.html')
-    st.components.v1.html(open('dashboard/graph.html', 'r', encoding='utf-8').read(), height=900, scrolling=False)
+        ''')
+        for node in subG.nodes():
+            if node in attrs:
+                score = attrs[node]['anomaly']
+                red = attrs[node]['red_team']
+                color = 'red' if red else ('orange' if score > 1.5 else 'yellow' if score > 1.0 else 'lightblue')
+                size = 30 if red else (20 if score > 1.5 else 15 if score > 1.0 else 10)
+                title = f"User: {node}<br>Anomaly Score: {score:.2f}<br>Red Team: {'Yes' if red else 'No'}"
+            elif str(node).startswith('file'):
+                color = 'green'
+                size = 8
+                title = f"File: {node}"
+            elif str(node).startswith('usb'):
+                color = 'purple'
+                size = 8
+                title = f"Device: {node}"
+            else:
+                color = 'gray'
+                size = 8
+                title = str(node)
+            net.add_node(node, label=str(node), color=color, size=size, title=title)
+        for edge in subG.edges(data=True):
+            net.add_edge(edge[0], edge[1], color='gray' if edge[2]['type']=='access' else 'purple')
+        net.save_graph('dashboard/graph.html')
+        st.components.v1.html(open('dashboard/graph.html', 'r', encoding='utf-8').read(), height=900, scrolling=True)
 
 with how_tab:
     st.header('How Does It Work?')
